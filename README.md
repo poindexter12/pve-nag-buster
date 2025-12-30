@@ -1,27 +1,40 @@
-## pve-nag-buster 
+## pve-nag-buster
 https://github.com/foundObjects/pve-nag-buster
 
 `pve-nag-buster` is a dpkg hook script that persistently removes license nags
-from Proxmox VE 6.x and up. Install it once and you won't see another license
-nag until the Proxmox team  changes their web-ui code in a way that breaks the patch.
+from Proxmox VE 6.x through 9.x. Install it once and you won't see another license
+nag until the Proxmox team changes their web-ui code in a way that breaks the patch.
 
 Please support the Proxmox team by [buying a subscription](https://www.proxmox.com/en/proxmox-ve/pricing) if it's within your
 means. High quality open source software like Proxmox needs our support!
 
-### News:
+### Compatibility:
 
-Last updated for: pve-manager/6.4-4/337d6701 (running kernel: 5.4.106-1-pve)
+| PVE Version | Status | Notes |
+|-------------|--------|-------|
+| 9.x | ✅ Supported | Function wrapper injection + deb822 repos |
+| 8.x | ✅ Supported | Function wrapper injection + deb822 repos |
+| 7.x | ✅ Supported | Function wrapper injection |
+| 6.x | ✅ Supported | Legacy conditional replacement |
+
+Last updated: December 2025 (v05)
 
 ### How does it work?
 
-The included hook script removes the "unlicensed node" popup nag from the web
-gui and disables the pve-enterprise repository list. This script is called
-every time a package updates the web gui or the pve-enterprise source list and
-will only run if packages containing those files are changed.
+The hook script patches `/usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js`
+to disable the subscription check popup. It uses two strategies:
 
-The installer installs the dpkg hook script, adds the pve-no-subscription repo list
-and calls the hook script once. There are no external dependencies beyond the base
-packages installed with PVE by default.
+1. **Function wrapper injection** (PVE 7+): Injects an early return into the
+   subscription check callback, bypassing the check entirely
+2. **Legacy conditional replacement** (PVE 6): Replaces the status check
+   conditional with `false`
+
+The script also disables the enterprise repository (both `.list` and `.sources` formats)
+and sets up the no-subscription repository.
+
+A dpkg hook ensures the patch is automatically reapplied whenever `proxmox-widget-toolkit`
+or `pve-manager` packages are updated. No external dependencies beyond the base
+PVE installation.
 
 ### Installation
 ```sh
