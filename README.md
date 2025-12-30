@@ -1,5 +1,5 @@
 ## pve-nag-buster
-https://github.com/foundObjects/pve-nag-buster
+https://github.com/poindexter12/pve-nag-buster
 
 `pve-nag-buster` is a dpkg hook script that persistently removes license nags
 from Proxmox VE 6.x through 9.x. Install it once and you won't see another license
@@ -8,7 +8,7 @@ nag until the Proxmox team changes their web-ui code in a way that breaks the pa
 Please support the Proxmox team by [buying a subscription](https://www.proxmox.com/en/proxmox-ve/pricing) if it's within your
 means. High quality open source software like Proxmox needs our support!
 
-### Compatibility:
+### Compatibility
 
 | PVE Version | Status | Notes |
 |-------------|--------|-------|
@@ -17,7 +17,7 @@ means. High quality open source software like Proxmox needs our support!
 | 7.x | ✅ Supported | Function wrapper injection |
 | 6.x | ✅ Supported | Legacy conditional replacement |
 
-Last updated: December 2025 (v05)
+Last updated: December 2025
 
 ### How does it work?
 
@@ -29,58 +29,66 @@ to disable the subscription check popup. It uses two strategies:
 2. **Legacy conditional replacement** (PVE 6): Replaces the status check
    conditional with `false`
 
-The script also disables the enterprise repository (both `.list` and `.sources` formats)
-and sets up the no-subscription repository.
+The installer also:
+- Disables the enterprise repository (both `.list` and `.sources` formats)
+- Sets up Proxmox, Ceph, and Debian no-subscription repositories
+- Installs a dpkg hook that reapplies the patch after `proxmox-widget-toolkit` or `pve-manager` updates
 
-A dpkg hook ensures the patch is automatically reapplied whenever `proxmox-widget-toolkit`
-or `pve-manager` packages are updated. No external dependencies beyond the base
-PVE installation.
+No external dependencies beyond the base PVE installation.
 
 ### Installation
+
 ```sh
-wget https://raw.githubusercontent.com/foundObjects/pve-nag-buster/master/install.sh
+wget https://raw.githubusercontent.com/poindexter12/pve-nag-buster/master/install.sh
 
 # Always read scripts downloaded from the internet before running them with sudo
 sudo bash install.sh
-
-# or ..
-chmod +x install.sh && sudo ./install.sh
 ```
 
 With Git:
 ```sh
-git clone https://github.com/foundObjects/pve-nag-buster.git
-
-# Always read scripts downloaded from the internet before running them with sudo
+git clone https://github.com/poindexter12/pve-nag-buster.git
 cd pve-nag-buster && sudo ./install.sh
 ```
 
-### Uninstall:
+### Uninstall
+
 ```sh
 sudo ./install.sh --uninstall
-# remove /etc/apt/sources.list.d/pve-no-subscription.list if desired
 ```
 
-### Notes:
+The uninstaller removes the hook script and dpkg configuration but leaves the
+apt sources files intact. Delete them manually if desired:
+- `/etc/apt/sources.list.d/pve-no-subscription.sources`
+- `/etc/apt/sources.list.d/ceph-no-subscription.sources`
+- `/etc/apt/sources.list.d/debian.sources`
 
-#### Why is there base64 in my peanut-butter?
+### Project Structure
 
-For convenience the install script also contains a base64 encoded copy of the
-hook script, this makes installation possible without access to github or a
-full clone of the project directory.
+```
+source/
+├── base.sh              # Installer logic
+├── buster.sh            # Hook script (nag removal + repo disabling)
+├── apt.sources.proxmox  # Proxmox no-subscription repo template
+├── apt.sources.ceph     # Ceph no-subscription repo template
+├── apt.sources.debian   # Debian repo template
+├── apt.conf.buster      # dpkg hook configuration
+└── build.sh             # Assembles install.sh from components
+```
 
-To inspect the base64 encoded script run `./install.sh --emit`; this dumps the
-encoded copy to stdout and quits. To install using the stored copy just run
-`sudo ./install.sh --offline`, no internet required.
+To rebuild `install.sh` after modifying source files:
+```sh
+./source/build.sh
+```
 
-### Thanks to:
+### Thanks to
 
-- John McLaren for his [blog post](https://www.reddit.com/user/seaqueue) documenting the web gui patch.
-- [Marlin Sööse](https://github.com/msoose) for the update for PVE 6.3+
+- John McLaren for his [blog post](https://mclarendatasystems.com/remove-proxmox51-subscription-notice/) documenting the web GUI patch
+- [Marlin Sööse](https://github.com/msoose) for the PVE 6.3+ update
+- [diamondpete](https://github.com/diamondpete/pve-nag-buster) for the modular source structure
 
-### Contact:
+### Contact
 
-[Open an issue](https://github.com/foundObjects/pve-nag-buster/issues) on GitHub
+[Open an issue](https://github.com/poindexter12/pve-nag-buster/issues) on GitHub
 
 Please get in touch if you find a way to improve anything, otherwise enjoy!
-
