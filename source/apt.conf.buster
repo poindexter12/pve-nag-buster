@@ -1,0 +1,10 @@
+// dpkg hooks for pve-nag-buster
+// Re-applies nag removal patch when proxmox-widget-toolkit or pve-manager is updated
+
+DPkg::Pre-Install-Pkgs {
+    "while read -r pkg; do case $pkg in *proxmox-widget-toolkit* | *pve-manager*) touch /run/.pve-nag-buster && exit 0; esac done < /dev/stdin";
+};
+
+DPkg::Post-Invoke {
+    "[ -f /run/.pve-nag-buster ] && { /usr/share/pve-nag-buster.sh; rm -f /run/.pve-nag-buster; }; exit 0";
+};
