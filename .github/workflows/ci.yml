@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Build install.sh
+        run: ./source/build.sh
+
+      - name: Run ShellCheck on source files
+        run: |
+          shellcheck -x source/*.sh
+          # SC2154 is a false positive for dpkg hook strings
+          shellcheck -x -e SC2154 install.sh
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build install.sh
+        run: ./source/build.sh
+
+      - name: Verify install.sh is up to date
+        run: |
+          git diff --exit-code install.sh || {
+            echo "::error::install.sh is out of date. Run ./source/build.sh and commit."
+            exit 1
+          }
