@@ -72,6 +72,10 @@ _main() {
       assert_root
       _uninstall
       ;;
+    "--check")
+      assert_root
+      _check
+      ;;
     "--install" | "")
       assert_root
       _install
@@ -88,6 +92,36 @@ _main() {
       ;;
   esac
   exit 0
+}
+
+_check() {
+  echo "Dry-run mode: showing what would be changed"
+  echo ""
+  export DRY_RUN=1
+
+  # Check nag patch status
+  echo "=== Nag Patch Status ==="
+  temp="$(mktemp)" && trap "rm -f $temp" EXIT
+  emit_buster > "$temp"
+  chmod +x "$temp"
+  "$temp"
+
+  echo ""
+  echo "=== Installation Status ==="
+  if [ -f "$path_buster" ]; then
+    echo "Hook script: installed at $path_buster"
+  else
+    echo "Hook script: not installed (would install to $path_buster)"
+  fi
+
+  if [ -f "$path_apt_conf" ]; then
+    echo "dpkg hooks: installed at $path_apt_conf"
+  else
+    echo "dpkg hooks: not installed (would install to $path_apt_conf)"
+  fi
+
+  echo ""
+  echo "No changes were made."
 }
 
 _uninstall() {
@@ -168,6 +202,7 @@ Usage: $(basename "$0") [OPTIONS]
 Options:
   --install     Install pve-nag-buster (default if no option given)
   --uninstall   Remove hook script and dpkg configuration
+  --check       Dry-run mode: show what would be changed
   --help, -h    Show this help message
   --version, -v Show version information
 
@@ -178,6 +213,7 @@ Description:
 
 Examples:
   sudo ./install.sh              # Install
+  sudo ./install.sh --check      # Dry-run (no changes)
   sudo ./install.sh --uninstall  # Uninstall
 
 More info: https://github.com/poindexter12/pve-nag-buster
@@ -233,7 +269,7 @@ HEREDOC_debian_sources
 }
 
 emit_buster_conf() {
-    cat <<HEREDOC_buster_conf
+    cat <<'HEREDOC_buster_conf'
 // dpkg hooks for pve-nag-buster
 // Re-applies nag removal patch when proxmox-widget-toolkit or pve-manager is updated
 
@@ -249,7 +285,7 @@ HEREDOC_buster_conf
 }
 
 emit_buster() {
-    cat <<HEREDOC_buster
+    cat <<'HEREDOC_buster'
 #!/bin/sh
 #
 # pve-nag-buster.sh https://github.com/poindexter12/pve-nag-buster
@@ -275,46 +311,67 @@ set -eu
 
 NAGFILE="/usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js"
 SCRIPT="$(basename "$0")"
+DRY_RUN="${DRY_RUN:-0}"
 
 # Patching strategies (tried in order):
 # 1. Function wrapper injection - most resilient across versions
 # 2. Legacy conditional replacement - fallback for older PVE
 
+log() {
+  if [ "$DRY_RUN" = "1" ]; then
+    echo "[dry-run] $*"
+  else
+    echo "$SCRIPT: $*"
+  fi
+}
+
 patch_nag() {
   if [ ! -f "$NAGFILE" ]; then
-    echo "$SCRIPT: proxmoxlib.js not found, skipping nag removal"
+    log "proxmoxlib.js not found, skipping nag removal"
     return 0
   fi
 
   # Check if already patched (look for our injection marker)
   if grep -q "orig_cmd(); return;" "$NAGFILE" 2>/dev/null; then
-    echo "$SCRIPT: Already patched"
+    log "Already patched"
     return 0
   fi
 
   # Strategy 1: Function wrapper injection (PVE 7.x - 9.x)
   # Injects early return into subscription check callback
   if grep -qE 'function\s*\(orig_cmd\)\s*\{' "$NAGFILE" 2>/dev/null; then
-    echo "$SCRIPT: Patching via function wrapper injection..."
+    log "Would patch via function wrapper injection"
+    if [ "$DRY_RUN" = "1" ]; then
+      log "  Backup: $NAGFILE -> $NAGFILE.orig"
+      log "  Inject: orig_cmd(); return; into subscription callback"
+      log "  Restart: pveproxy.service"
+      return 0
+    fi
     cp "$NAGFILE" "$NAGFILE.orig"
     sed -Ei "s/(function\s*\(orig_cmd\)\s*\{)/\1 orig_cmd(); return;/" "$NAGFILE"
     systemctl restart pveproxy.service
-    echo "$SCRIPT: Nag removed successfully"
+    log "Nag removed successfully"
     return 0
   fi
 
   # Strategy 2: Legacy conditional replacement (PVE 6.x)
   if grep -q "data.status.toLowerCase() !== 'active'" "$NAGFILE" 2>/dev/null; then
-    echo "$SCRIPT: Patching via legacy conditional replacement..."
+    log "Would patch via legacy conditional replacement"
+    if [ "$DRY_RUN" = "1" ]; then
+      log "  Backup: $NAGFILE -> $NAGFILE.orig"
+      log "  Replace: status check with 'false'"
+      log "  Restart: pveproxy.service"
+      return 0
+    fi
     cp "$NAGFILE" "$NAGFILE.orig"
     sed -i "s/data.status.toLowerCase() !== 'active'/false/g" "$NAGFILE"
     systemctl restart pveproxy.service
-    echo "$SCRIPT: Nag removed successfully"
+    log "Nag removed successfully"
     return 0
   fi
 
-  echo "$SCRIPT: WARNING - No known nag pattern found in proxmoxlib.js"
-  echo "$SCRIPT: This may indicate a new PVE version with changed code"
+  log "WARNING - No known nag pattern found in proxmoxlib.js"
+  log "This may indicate a new PVE version with changed code"
   return 1
 }
 
@@ -322,16 +379,24 @@ disable_enterprise_repo() {
   # Handle .list format (PVE 6.x - 7.x)
   PAID_LIST="/etc/apt/sources.list.d/pve-enterprise.list"
   if [ -f "$PAID_LIST" ]; then
-    echo "$SCRIPT: Disabling PVE enterprise repo (.list)..."
-    mv -f "$PAID_LIST" "${PAID_LIST%.list}.disabled"
+    log "Disabling PVE enterprise repo (.list)..."
+    if [ "$DRY_RUN" = "1" ]; then
+      log "  Move: $PAID_LIST -> ${PAID_LIST%.list}.disabled"
+    else
+      mv -f "$PAID_LIST" "${PAID_LIST%.list}.disabled"
+    fi
   fi
 
   # Handle .sources format (PVE 8.x+, deb822 style)
   PAID_SOURCES="/etc/apt/sources.list.d/pve-enterprise.sources"
   if [ -f "$PAID_SOURCES" ]; then
     if ! grep -q "^Enabled: false" "$PAID_SOURCES" 2>/dev/null; then
-      echo "$SCRIPT: Disabling PVE enterprise repo (.sources)..."
-      echo "Enabled: false" >> "$PAID_SOURCES"
+      log "Disabling PVE enterprise repo (.sources)..."
+      if [ "$DRY_RUN" = "1" ]; then
+        log "  Append: 'Enabled: false' to $PAID_SOURCES"
+      else
+        echo "Enabled: false" >> "$PAID_SOURCES"
+      fi
     fi
   fi
 
@@ -339,8 +404,12 @@ disable_enterprise_repo() {
   CEPH_SOURCES="/etc/apt/sources.list.d/ceph.sources"
   if [ -f "$CEPH_SOURCES" ]; then
     if ! grep -q "^Enabled: false" "$CEPH_SOURCES" 2>/dev/null; then
-      echo "$SCRIPT: Disabling Ceph enterprise repo..."
-      echo "Enabled: false" >> "$CEPH_SOURCES"
+      log "Disabling Ceph enterprise repo..."
+      if [ "$DRY_RUN" = "1" ]; then
+        log "  Append: 'Enabled: false' to $CEPH_SOURCES"
+      else
+        echo "Enabled: false" >> "$CEPH_SOURCES"
+      fi
     fi
   fi
 }
