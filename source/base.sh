@@ -58,6 +58,7 @@ _init() {
   path_apt_sources_ceph="/etc/apt/sources.list.d/ceph-no-subscription.sources"
   path_apt_sources_debian="/etc/apt/sources.list.d/debian.sources"
   path_buster="/usr/share/pve-nag-buster.sh"
+  path_nagfile="/usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js"
 }
 
 # installer main body
@@ -75,6 +76,10 @@ _main() {
     "--check")
       assert_root
       _check
+      ;;
+    "--restore")
+      assert_root
+      _restore
       ;;
     "--install" | "")
       assert_root
@@ -135,6 +140,32 @@ _uninstall() {
   msg "    $path_apt_sources_proxmox"
   msg "    $path_apt_sources_ceph"
   msg "    $path_apt_sources_debian"
+}
+
+_restore() {
+  msg_header "Restoring proxmoxlib.js from backup"
+  backup="${path_nagfile}.orig"
+
+  if [ ! -f "$backup" ]; then
+    msg_err "No backup found at $backup"
+    msg_info "Backup is created during installation. You may need to reinstall proxmox-widget-toolkit package."
+    return 1
+  fi
+
+  if [ ! -f "$path_nagfile" ]; then
+    msg_warn "Target file missing, restoring anyway"
+  fi
+
+  cp "$backup" "$path_nagfile"
+  msg_ok "Restored $path_nagfile from backup"
+
+  msg_info "Restarting pveproxy.service..."
+  systemctl restart pveproxy.service
+  msg_ok "Service restarted"
+
+  msg ""
+  msg_ok "${BOLD}Restore complete!${NC}"
+  msg_info "The subscription nag will appear again after reload"
 }
 
 _install() {
@@ -202,6 +233,7 @@ Usage: $(basename "$0") [OPTIONS]
 Options:
   --install     Install pve-nag-buster (default if no option given)
   --uninstall   Remove hook script and dpkg configuration
+  --restore     Restore proxmoxlib.js from backup (undo patch)
   --check       Dry-run mode: show what would be changed
   --help, -h    Show this help message
   --version, -v Show version information
@@ -214,6 +246,7 @@ Description:
 Examples:
   sudo ./install.sh              # Install
   sudo ./install.sh --check      # Dry-run (no changes)
+  sudo ./install.sh --restore    # Restore original file
   sudo ./install.sh --uninstall  # Uninstall
 
 More info: https://github.com/poindexter12/pve-nag-buster
