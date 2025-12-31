@@ -27,6 +27,30 @@ PATH=/usr/sbin:/usr/bin:/sbin:/bin
 
 VERSION="1.0.0"
 
+# Colors (disabled if not a terminal)
+if [ -t 1 ]; then
+  RED='\033[0;31m'
+  GREEN='\033[0;32m'
+  YELLOW='\033[0;33m'
+  BLUE='\033[0;34m'
+  BOLD='\033[1m'
+  NC='\033[0m' # No Color
+else
+  RED=''
+  GREEN=''
+  YELLOW=''
+  BLUE=''
+  BOLD=''
+  NC=''
+fi
+
+msg()     { printf "%b\n" "$*"; }
+msg_ok()  { msg "${GREEN}✓${NC} $*"; }
+msg_info() { msg "${BLUE}→${NC} $*"; }
+msg_warn() { msg "${YELLOW}!${NC} $*"; }
+msg_err() { msg "${RED}✗${NC} $*" >&2; }
+msg_header() { msg "\n${BOLD}$*${NC}"; }
+
 # initialize paths
 _init() {
   path_apt_conf="/etc/apt/apt.conf.d/86pve-nags"
@@ -67,19 +91,21 @@ _main() {
 }
 
 _uninstall() {
-  echo "Uninstalling pve-nag-buster..."
-  [ -f "$path_apt_conf" ] && rm -f "$path_apt_conf" && echo "  Removed $path_apt_conf"
-  [ -f "$path_buster" ] && rm -f "$path_buster" && echo "  Removed $path_buster"
+  msg_header "Uninstalling pve-nag-buster"
+  [ -f "$path_apt_conf" ] && rm -f "$path_apt_conf" && msg_ok "Removed $path_apt_conf"
+  [ -f "$path_buster" ] && rm -f "$path_buster" && msg_ok "Removed $path_buster"
 
-  echo ""
-  echo "Script and dpkg hooks removed."
-  echo "The following files were NOT removed (delete manually if desired):"
-  printf '  %s\n' "$path_apt_sources_proxmox"
-  printf '  %s\n' "$path_apt_sources_ceph"
-  printf '  %s\n' "$path_apt_sources_debian"
+  msg ""
+  msg_ok "Script and dpkg hooks removed"
+  msg_warn "The following files were NOT removed (delete manually if desired):"
+  msg "    $path_apt_sources_proxmox"
+  msg "    $path_apt_sources_ceph"
+  msg "    $path_apt_sources_debian"
 }
 
 _install() {
+  msg_header "Installing pve-nag-buster"
+
   # Detect release codename
   VERSION_CODENAME=''
   # shellcheck disable=SC1091
@@ -91,38 +117,38 @@ _install() {
   fi
   export RELEASE
 
-  echo "Detected release: $RELEASE"
+  msg_info "Detected release: ${BOLD}$RELEASE${NC}"
 
   # Create apt sources
-  echo "Creating Proxmox no-subscription repo source..."
+  msg_info "Creating apt sources..."
   emit_proxmox_sources > "$path_apt_sources_proxmox"
-
-  echo "Creating Ceph no-subscription repo source..."
+  msg_ok "Proxmox no-subscription repo"
   emit_ceph_sources > "$path_apt_sources_ceph"
-
-  echo "Creating Debian repo source..."
+  msg_ok "Ceph no-subscription repo"
   emit_debian_sources > "$path_apt_sources_debian"
+  msg_ok "Debian repo"
 
   # Create dpkg hooks
-  echo "Creating dpkg hooks in /etc/apt/apt.conf.d..."
+  msg_info "Creating dpkg hooks..."
   emit_buster_conf > "$path_apt_conf"
+  msg_ok "Installed $path_apt_conf"
 
   # Install hook script
   temp="$(mktemp)" && trap "rm -f $temp" EXIT
   emit_buster > "$temp"
-  echo "Installing hook script as $path_buster"
   install -o root -m 0550 "$temp" "$path_buster"
+  msg_ok "Installed $path_buster"
 
   # Run initial patch
-  echo "Running patch script..."
+  msg_info "Running patch script..."
   "$path_buster"
 
-  echo ""
-  echo "Installation complete!"
+  msg ""
+  msg_ok "${BOLD}Installation complete!${NC}"
   return 0
 }
 
-assert_root() { [ "$(id -u)" -eq '0' ] || { echo "This action requires root." && exit 1; }; }
+assert_root() { [ "$(id -u)" -eq '0' ] || { msg_err "This action requires root."; exit 1; }; }
 
 _version() {
   echo "pve-nag-buster $VERSION"
