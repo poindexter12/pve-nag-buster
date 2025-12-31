@@ -15,6 +15,11 @@ echo "Building $dst from $src_dir/..."
 echo "  Adding base.sh..."
 cat "$src_dir/base.sh" >> "$dst"
 
+# Emit colors/messaging functions
+echo "  Adding colors.sh..."
+cat "$src_dir/colors.sh" >> "$dst"
+echo "" >> "$dst"
+
 # Helper to create emit_* functions with heredocs
 # $1: function name
 # $2: source file
