@@ -25,6 +25,8 @@ set -eu
 PATH=/usr/sbin:/usr/bin:/sbin:/bin
 \unalias -a
 
+VERSION="1.0.0"
+
 # initialize paths
 _init() {
   path_apt_conf="/etc/apt/apt.conf.d/86pve-nags"
@@ -50,8 +52,15 @@ _main() {
       assert_root
       _install
       ;;
+    "--help" | "-h")
+      _help
+      ;;
+    "--version" | "-v")
+      _version
+      ;;
     *)
       _usage
+      exit 1
       ;;
   esac
   exit 0
@@ -114,5 +123,38 @@ _install() {
 }
 
 assert_root() { [ "$(id -u)" -eq '0' ] || { echo "This action requires root." && exit 1; }; }
-_usage() { echo "Usage: $(basename "$0") [--install|--uninstall]"; }
+
+_version() {
+  echo "pve-nag-buster $VERSION"
+}
+
+_usage() {
+  echo "Usage: $(basename "$0") [OPTIONS]"
+  echo "Try '$(basename "$0") --help' for more information."
+}
+
+_help() {
+  cat <<EOF
+pve-nag-buster $VERSION - Remove Proxmox VE subscription nag
+
+Usage: $(basename "$0") [OPTIONS]
+
+Options:
+  --install     Install pve-nag-buster (default if no option given)
+  --uninstall   Remove hook script and dpkg configuration
+  --help, -h    Show this help message
+  --version, -v Show version information
+
+Description:
+  Patches the Proxmox web UI to remove the "No valid subscription" popup
+  and sets up no-subscription apt repositories. A dpkg hook ensures the
+  patch is reapplied after package updates.
+
+Examples:
+  sudo ./install.sh              # Install
+  sudo ./install.sh --uninstall  # Uninstall
+
+More info: https://github.com/poindexter12/pve-nag-buster
+EOF
+}
 
