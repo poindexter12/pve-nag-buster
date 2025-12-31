@@ -22,8 +22,7 @@ jobs:
       - name: Run ShellCheck on source files
         run: |
           shellcheck -x source/*.sh
-          # SC2154 is a false positive for dpkg hook strings
-          shellcheck -x -e SC2154 install.sh
+          shellcheck -x install.sh
 
   build:
     name: Build

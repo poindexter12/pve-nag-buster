@@ -72,6 +72,10 @@ _main() {
       assert_root
       _uninstall
       ;;
+    "--check")
+      assert_root
+      _check
+      ;;
     "--install" | "")
       assert_root
       _install
@@ -88,6 +92,36 @@ _main() {
       ;;
   esac
   exit 0
+}
+
+_check() {
+  echo "Dry-run mode: showing what would be changed"
+  echo ""
+  export DRY_RUN=1
+
+  # Check nag patch status
+  echo "=== Nag Patch Status ==="
+  temp="$(mktemp)" && trap "rm -f $temp" EXIT
+  emit_buster > "$temp"
+  chmod +x "$temp"
+  "$temp"
+
+  echo ""
+  echo "=== Installation Status ==="
+  if [ -f "$path_buster" ]; then
+    echo "Hook script: installed at $path_buster"
+  else
+    echo "Hook script: not installed (would install to $path_buster)"
+  fi
+
+  if [ -f "$path_apt_conf" ]; then
+    echo "dpkg hooks: installed at $path_apt_conf"
+  else
+    echo "dpkg hooks: not installed (would install to $path_apt_conf)"
+  fi
+
+  echo ""
+  echo "No changes were made."
 }
 
 _uninstall() {
@@ -168,6 +202,7 @@ Usage: $(basename "$0") [OPTIONS]
 Options:
   --install     Install pve-nag-buster (default if no option given)
   --uninstall   Remove hook script and dpkg configuration
+  --check       Dry-run mode: show what would be changed
   --help, -h    Show this help message
   --version, -v Show version information
 
@@ -178,6 +213,7 @@ Description:
 
 Examples:
   sudo ./install.sh              # Install
+  sudo ./install.sh --check      # Dry-run (no changes)
   sudo ./install.sh --uninstall  # Uninstall
 
 More info: https://github.com/poindexter12/pve-nag-buster
